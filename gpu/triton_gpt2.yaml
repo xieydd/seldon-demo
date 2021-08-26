@@ -1,0 +1,60 @@
+apiVersion: machinelearning.seldon.io/v1
+kind: SeldonDeployment
+metadata:
+  name: gpt2
+spec:
+  predictors:
+  - annotations:
+      seldon.io/no-engine: "true"
+    componentSpecs:
+    - spec:
+        containers:
+        - args:
+          - /opt/tritonserver/bin/tritonserver
+          - --grpc-port=9500
+          - --http-port=9000
+          - --model-repository=/mnt/models
+          - --strict-model-config=false
+          image: nvcr.io/nvidia/tritonserver:20.08-py3
+          imagePullPolicy: IfNotPresent
+          name: gpt2
+          ports:
+          - containerPort: 9500
+            name: grpc
+            protocol: TCP
+          - containerPort: 9000
+            name: http
+            protocol: TCP
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+          volumeMounts:
+          - mountPath: /mnt/models
+            name: gpt2-provision-location
+        initContainers:
+        - args:
+          - /cos/onnx-gpt2
+          - /mnt/models
+          image: seldonio/rclone-storage-initializer:1.10.0-dev
+          name: gpt2-model-initializer
+          volumeMounts:
+          - mountPath: /mnt/models
+            name: gpt2-provision-location
+          - mountPath: /cos
+            name: cos
+        volumes:
+        - emptyDir: {}
+          name: gpt2-provision-location
+        - name: cos
+          persistentVolumeClaim:
+            claimName: mnist-cos-pvc
+    graph:
+      implementation: TRITON_SERVER
+      logger:
+        mode: all
+      modelUri: /cos/onnx-gpt2
+      name: gpt2
+      type: MODEL
+    name: default
+    replicas: 1
+  protocol: kfserving
