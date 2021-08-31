@@ -1,0 +1,110 @@
+apiVersion: machinelearning.seldon.io/v1
+kind: SeldonDeployment
+metadata:
+  name: multi-model-tfserving-canary
+  namespace: default
+spec:
+  predictors:
+  - componentSpecs:
+    - spec:
+        containers:
+        - args:
+          - --port=8500
+          - --rest_api_port=8501
+          - --model_config_file=/mnt/models/models.config
+          image: tensorflow/serving
+          name: multi
+          ports:
+          - containerPort: 8501
+            name: http
+            protocol: TCP
+          - containerPort: 8500
+            name: grpc
+            protocol: TCP
+          volumeMounts:
+          - mountPath: /mnt/models
+            name: multi-provision-location
+        initContainers:
+        - args:
+          - /cos/multi-models
+          - /mnt/models
+          image: seldonio/rclone-storage-initializer:1.10.0-dev
+          name: multi-model-initializer
+          volumeMounts:
+          - mountPath: /mnt/models
+            name: multi-provision-location
+          - mountPath: /cos
+            name: cos
+        volumes:
+        - emptyDir: {}
+          name: multi-provision-location
+        - name: cos
+          persistentVolumeClaim:
+            claimName: mnist-cos-pvc
+    graph:
+      endpoint:
+        grpcPort: 8500
+        httpPort: 8501
+      implementation: TENSORFLOW_SERVER
+      modelUri: /cos/multi-models
+      name: multi
+      parameters:
+      - name: rest_endpoint
+        type: STRING
+        value: http://0.0.0.0:8501
+      type: MODEL
+    name: main
+    replicas: 1
+    traffic: 75
+  - componentSpecs:
+    - spec:
+        containers:
+        - args:
+          - --port=8500
+          - --rest_api_port=8501
+          - --model_config_file=/mnt/models/models.config
+          image: tensorflow/serving
+          name: multi
+          ports:
+          - containerPort: 8501
+            name: http
+            protocol: TCP
+          - containerPort: 8500
+            name: grpc
+            protocol: TCP
+          volumeMounts:
+          - mountPath: /mnt/models
+            name: multi-provision-location
+        initContainers:
+        - args:
+          - /cos/multi-models
+          - /mnt/models
+          image: seldonio/rclone-storage-initializer:1.10.0-dev
+          name: multi-model-initializer
+          volumeMounts:
+          - mountPath: /mnt/models
+            name: multi-provision-location
+          - mountPath: /cos
+            name: cos
+        volumes:
+        - emptyDir: {}
+          name: multi-provision-location
+        - name: cos
+          persistentVolumeClaim:
+            claimName: mnist-cos-pvc
+    graph:
+      endpoint:
+        grpcPort: 8500
+        httpPort: 8501
+      implementation: TENSORFLOW_SERVER
+      modelUri: /cos/multi-models
+      name: multi
+      parameters:
+      - name: rest_endpoint
+        type: STRING
+        value: http://0.0.0.0:8501
+      type: MODEL
+    name: canary
+    replicas: 1
+    traffic: 25
+  protocol: tensorflow
